@@ -13,7 +13,7 @@ st.write("Upload a file and split it into batches based on number of rows.")
 # Upload file
 uploaded_file = st.file_uploader(
     "Upload Excel or CSV file",
-    type=["xlsx", "csv"]
+    type=["xlsx", "xls", "csv"]
 )
 
 rows_per_batch = st.number_input(
