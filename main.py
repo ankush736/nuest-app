@@ -4,43 +4,58 @@ import math
 import io
 import zipfile
 
-st.set_page_config(page_title="File Batch Splitter", layout="centered")
+st.set_page_config(page_title="Batch File Splitter", layout="centered")
 
 st.title("📂 Excel / CSV Batch Splitter")
+st.write("Upload a file and split it into multiple batches based on number of rows.")
 
-st.write("Upload a file and split it into batches based on number of rows.")
-
-# Upload file
 uploaded_file = st.file_uploader(
-    "Upload Excel or CSV file",
-    type=["xlsx", "xls", "csv"]
+    "Upload Excel / CSV file",
+    type=["csv", "xlsx", "xls"]
 )
 
 rows_per_batch = st.number_input(
-    "Enter number of rows per batch",
+    "Enter rows per batch",
     min_value=1,
     step=1
 )
 
 if uploaded_file is not None and rows_per_batch:
 
-    # Read file
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
+    file_name = uploaded_file.name.lower()
+
+    # ✅ SAFE FILE READER
+    try:
+        if file_name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+
+        elif file_name.endswith(".xlsx"):
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
+
+        elif file_name.endswith(".xls"):
+            df = pd.read_excel(uploaded_file, engine="xlrd")
+
+        else:
+            st.error("❌ Unsupported file format")
+            st.stop()
+
+    except Exception as e:
+        st.error(f"❌ Error reading file: {e}")
+        st.stop()
 
     total_rows = len(df)
     total_batches = math.ceil(total_rows / rows_per_batch)
 
-    st.success(f"Total Rows: {total_rows}")
-    st.info(f"Total Batches Created: {total_batches}")
+    st.success(f"✅ Total Rows: {total_rows}")
+    st.info(f"📦 Total Batches: {total_batches}")
 
-    if st.button("🚀 Split and Download"):
+    if st.button("🚀 Split File"):
+
+        progress = st.progress(0)
 
         zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
 
             for i in range(total_batches):
                 start = i * rows_per_batch
@@ -49,19 +64,19 @@ if uploaded_file is not None and rows_per_batch:
                 batch_df = df.iloc[start:end]
 
                 output = io.BytesIO()
+                batch_filename = f"batch_{i+1}.xlsx"
 
-                file_name = f"batch_{i+1}"
+                batch_df.to_excel(output, index=False, engine="openpyxl")
 
-                if uploaded_file.name.endswith(".csv"):
-                    batch_df.to_csv(output, index=False)
-                    zf.writestr(f"{file_name}.csv", output.getvalue())
-                else:
-                    batch_df.to_excel(output, index=False)
-                    zf.writestr(f"{file_name}.xlsx", output.getvalue())
+                zf.writestr(batch_filename, output.getvalue())
+
+                progress.progress((i + 1) / total_batches)
+
+        st.success("✅ File successfully split into batches")
 
         st.download_button(
-            label="📥 Download All Batches (ZIP)",
+            label="📥 Download ZIP",
             data=zip_buffer.getvalue(),
-            file_name="batches.zip",
+            file_name="split_batches.zip",
             mime="application/zip"
         )
