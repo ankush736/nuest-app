@@ -24,7 +24,7 @@ if uploaded_file is not None and rows_per_batch:
 
     file_name = uploaded_file.name.lower()
 
-    # ✅ SAFE FILE READER
+    # Read file
     try:
         if file_name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
@@ -43,6 +43,11 @@ if uploaded_file is not None and rows_per_batch:
         st.error(f"❌ Error reading file: {e}")
         st.stop()
 
+    # Convert datetime columns to dd-MMM-yyyy format
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime('%d-%b-%Y')
+
     total_rows = len(df)
     total_batches = math.ceil(total_rows / rows_per_batch)
 
@@ -58,17 +63,27 @@ if uploaded_file is not None and rows_per_batch:
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
 
             for i in range(total_batches):
+
                 start = i * rows_per_batch
                 end = start + rows_per_batch
 
                 batch_df = df.iloc[start:end]
 
                 output = io.BytesIO()
+
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    batch_df.to_excel(
+                        writer,
+                        index=False,
+                        sheet_name="Sheet1"
+                    )
+
                 batch_filename = f"batch_{i+1}.xlsx"
 
-                batch_df.to_excel(output, index=False, engine="openpyxl")
-
-                zf.writestr(batch_filename, output.getvalue())
+                zf.writestr(
+                    batch_filename,
+                    output.getvalue()
+                )
 
                 progress.progress((i + 1) / total_batches)
 
